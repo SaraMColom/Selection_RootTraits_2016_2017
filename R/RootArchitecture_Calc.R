@@ -1,6 +1,6 @@
 # Calculate root width, primary root length and root angle code
 
-CoordDat<-read.csv("~/Google Drive File Stream/My Drive/Final_documents/Selection_RootTraits_2016_2017/RawData/RhizotronExpCoordinates.csv") # Read in data
+CoordDat<-read.csv("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/RawData/RhizotronExpCoordinates.csv") # Read in data
 
 head(CoordDat)
 

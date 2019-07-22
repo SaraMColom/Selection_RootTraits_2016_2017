@@ -28,8 +28,7 @@ library(emmeans)
 library(multcomp)
 library(ggpubr)
 
-#Source Lindsay's function to do correlation plotting below
-source("https://raw.githubusercontent.com/SaraMColom/Rhizotron-2016-Field-2017-Project/master/SummarySE")
+source("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/R/SummarySE.R")
 
 #Aesthetics
 Tx<-theme(axis.text.x = element_text(face="bold",  
@@ -54,10 +53,9 @@ Tx<-theme(axis.text.x = element_text(face="bold",
 # Data prep 
 
 ### Load Data and manage data
-setwd("~/Google Drive File Stream/My Drive/Final_documents/Selection_RootTraits_2016_2017/CleanData/")
 
-      Fitness<-read.csv("FitnessData.csv")
-      BRT<-read.csv("BRTdata.csv")
+      Fitness<-read.csv("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/CleanData/FitnessData.csv")
+      BRT<-read.csv("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/CleanData/BRTdata.csv")
       
       ###### Examine data structure and adjust
       

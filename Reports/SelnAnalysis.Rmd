@@ -23,23 +23,18 @@ library(corrplot)
 library(ggpubr)
 library(kableExtra)
 
-#Table<- kable() %>%
- # kable_styling()
-
-#Source Lindsay's code to do correlation plotting below
-source("https://gist.githubusercontent.com/lchaney/8240672/raw/31dbc20de132301816804f25dfbb35c5cc778c73/corrPlot_v2.R")
-source("https://raw.githubusercontent.com/SaraMColom/Rhizotron-2016-Field-2017-Project/master/SummarySE")
-#source function corrPlot_v2 [download here: https://gist.github.com/lchaney/8240672]
+source("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/R/SummarySE.R")
 ```
 
 # Data prep 
 ### Load Data and manage data
 
 ```{r,comment=F, message=F,warning=F}	
-setwd("~/Google Drive File Stream/My Drive/Final_documents/Selection_RootTraits_2016_2017/CleanData/")
 
-BRT<-read.csv("BRTdata.csv")
-Fitness<-read.csv("FitnessData.csv")
+Fitness<-read.csv("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/CleanData/FitnessData.csv")
+
+BRT<-read.csv("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/CleanData/BRTdata.csv")
+
 
 ###### Examine data structure and adjust
 

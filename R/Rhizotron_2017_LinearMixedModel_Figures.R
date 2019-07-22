@@ -26,7 +26,7 @@ library(lmerTest)
 library(emmeans)
 library(PerformanceAnalytics)
 
-source("~/Google Drive File Stream/My Drive/Root_phenotyping/Rcode/sumSE.txt") # Source txt code with summary stats function
+source("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/R/SummarySE.R")
 
 #Save theme text setting
 Tx<-theme(axis.text.x = element_text(face="bold",  
@@ -35,7 +35,7 @@ Tx<-theme(axis.text.x = element_text(face="bold",
                                      size=14))
 
 # Root architecture trait data from rhizotron experiment
-totaldat<-read.csv("~/Google Drive File Stream/My Drive/Final_documents/Selection_RootTraits_2016_2017/CleanData/Rhiz_root_traits.csv")
+totaldat<-read.csv("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/CleanData/Rhiz_root_traits.csv")
 #Check structure and correct structure
 str(totaldat)
 totaldat$Id<-as.factor(totaldat$Id)
