@@ -1,0 +1,777 @@
+---
+title: "Selection analyses"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    highlight: tango
+    self_contained: no
+---
+
+```{r,comment=FALSE,message=FALSE,warning=FALSE,cache=FALSE,cache.comments=FALSE,results="hide",cache.lazy=FALSE,echo=TRUE}
+#######################################################
+### Getting started									###
+#######################################################
+#Load libraries
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(gridExtra)
+library(FactoMineR)
+library(factoextra)
+library(corrplot)
+library(ggpubr)
+library(kableExtra)
+
+source("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/R/SummarySE.R")
+```
+
+# Data prep 
+### Load Data and manage data
+
+```{r,comment=F, message=F,warning=F}	
+
+Fitness<-read.csv("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/CleanData/FitnessData.csv")
+
+BRT<-read.csv("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/CleanData/BRTdata.csv")
+
+
+###### Examine data structure and adjust
+
+str(Fitness)
+str(BRT)
+
+#Adjust
+Fitness[c("Block","Position")]<-lapply(Fitness[c("Block","Position")],as.factor)
+BRT[c("Block","Position")]<-lapply(BRT[c("Block","Position")],as.factor)
+
+```
+
+## CALCULATING RELATIVE FITNESS & FAMILY MEAN BIOMASS
+
+```{r,comment=F, message=F,warning=F}	
+# Count number of samples per group for fitness data 
+SampleSize<-Fitness %>% group_by(Species,Trt,Combos,Of_exp) %>% count(ML)
+
+## ## ## ## ## ##   ## ## ## ## ## ##  Calculate relative fitness ## ## ## ## ## ## ## ## ## ## ## ##
+
+#Calculate mean seed number  by Species and Cohort these will be analyzed separatley later!
+SdMnSpeciesCohort<- aggregate(Seed_Number ~ Trt+Species+Of_exp, Fitness, mean)
+
+names(SdMnSpeciesCohort)[4]<- "MeanSdNm" #Rename coloumn for mean seed number
+
+# Merge average fitness of species and cohort 
+Fitmean<-merge(Fitness,SdMnSpeciesCohort,by=c("Of_exp","Species","Trt"))
+
+# Calculate relative fitness as the mean family seed number by cohort and treatment and the total mean seed number of that species,treatment and cohort
+Fitmean$Rel_Fit<-Fitmean$Seed_Number/Fitmean$MeanSdNm
+
+```
+![Root angle estimated by rest is taken from horizontal line up -shaded yellow; We subtracted 90 degrees to obtain the inner angle measurement and then calculated the average root angle. If root angle was >90 we disregaurded this measurement since it is measuring a root coming out z- direction.](~/Google Drive File Stream/My Drive/Root_phenotyping/Rcode/SaraSelectionAnalysis/SaraCodeData/Root_Angle_Field.png)
+
+## Sample size
+```{r,warning=F,comment=F,message=F}
+# Count of species per cohort per treatment for root phenotyping
+table(BRT$Species,BRT$Of_exp,BRT$Trt)
+
+# Count of species per cohort per treatment for fitness
+table(Fitness$Species,Fitness$Of_exp,Fitness$Trt)
+
+# Count of samples per cohort overall
+table(BRT$Of_exp) 
+table(Fitness$Of_exp)
+```
+
+## Trait distributions
+
+```{r,warning=F,comment=F,message=F}
+# Function to calculate mean put in dataframe
+Means<-function(x){aggregate(x~Species,BRT,FUN=mean)}
+meandat<-lapply(BRT[c("TotalProjStr", "AreaConvexHull", "MaxWidth", "AvAng")],Means)  
+
+#Incorporate fitness traits
+Means2<-function(x){aggregate(x~Species,Fitmean,FUN=mean)}
+meandat2<-lapply(Fitmean[c("Seed_Number","Rel_Fit")],Means2)  
+meanDat<-data.frame(do.call("rbind",c(meandat,meandat2)),row.names=NULL)
+meanDat$Trait<-rep(c("TotalProjStr", "AreaConvexHull", "MaxWidth", "AvAng","Seed_Number","Rel_Fit"),each=2)
+colnames(meanDat)[2]<-"mean"
+
+Histograms<-function(trait){ggplot(data=BRT,aes(BRT[,trait]))+
+  geom_histogram(aes(fill=Species), alpha = 0.2)+
+  theme_classic()  +
+  labs(title=names(BRT[trait])) +
+  labs(y="Count", x="Trait variation")+
+  geom_vline(data=meanDat%>%filter(Trait==names(BRT[trait])),
+             aes(xintercept=mean,colour=Species),linetype="dashed", size=1.5)+
+scale_fill_manual(values = c("darkgrey","gold"))  +
+scale_color_manual(values = c("darkgrey","gold"))}
+
+trait<-which(names(BRT)%in%c("TotalProjStr", "AreaConvexHull", "MaxWidth", "AvAng"))
+
+HistRes<-lapply(trait,FUN=Histograms)
+
+Histograms2<-function(Fit){ggplot(data=Fitmean,aes(Fitmean[,Fit]))+
+  geom_histogram(aes(fill=Species), alpha = 0.2)+
+  theme_classic()  +
+  labs(title=names(Fitmean[Fit])) +
+  labs(y="Count", x="Trait variation")+
+  geom_vline(data=meanDat%>%filter(Trait==names(Fitmean[Fit])),
+             aes(xintercept=mean,colour=Species),linetype="dashed", size=1.5)+
+scale_fill_manual(values = c("darkgrey","gold"))  +
+scale_color_manual(values = c("darkgrey","gold"))}
+
+Fit<-which(names(Fitmean)%in%c( "Seed_Number","Rel_Fit"))
+
+par(mfrow=c(1,1))  
+
+HistRes2<-lapply(Fit,FUN=Histograms2)
+```
+
+
+```{r}
+library(gridExtra)
+do.call("grid.arrange",c(HistRes,HistRes2))
+```
+
+
+**We find that cohort impacts plant size, as expected however no significant effects of cohort on seed number after accounting for differences in biomass between plants.**
+
+### Calculate family means of root traits
+```{r}
+# The following for loop calculates the means of root traits by ML x Trt x Species 
+trait<-which(names(BRT)%in%c("AreaConvexHull", "MaxWidth", "AvAng"))
+
+# Aggregate 
+for(i in trait) {
+  if(i==trait[1]){
+    df5<-aggregate(BRT[,i] ~ML+Trt+Species, BRT, mean)
+    colnames(df5)[4]<-paste(colnames(BRT)[i])
+  }
+  else{
+    df10<-aggregate(BRT[,i] ~ML+Trt+Species, BRT, mean) 
+    colnames(df10)[4]<-paste(colnames(BRT)[i])
+    df5<-merge(df10,df5,by=c("ML","Trt","Species"))
+  }
+}
+
+# Merge family root trait means to fitness data
+df5a<-unique(merge(Fitmean,df5,by=c("ML","Trt","Species")))
+
+# Standardize root trait values
+df5a$StdAreaConvexHull<-(df5a$AreaConvexHull-mean(df5a$AreaConvexHull))/sd(df5a$AreaConvexHull)
+df5a$StdMaxWidth<-(df5a$MaxWidth-mean(df5a$MaxWidth))/sd(df5a$MaxWidth)
+df5a$StdAvAng<-(df5a$AvAng-mean(df5a$AvAng))/sd(df5a$AvAng)
+
+# Square values
+df5a$StdAreaConvexHull2<-(df5a$StdAreaConvexHull*df5a$StdAreaConvexHull)
+df5a$StdMaxWidth2<-(df5a$StdMaxWidth*df5a$StdMaxWidth)
+df5a$StdAvAng2<-(df5a$StdAvAng*df5a$StdAvAng)
+```
+
+
+# Selection analysis 
+
+### Instruction for selection analysis
+Next I wrote the *df5a* table out, took averages of standardized fitness and all traits according to maternal line, treatment, species, and cohort. Have to do this for genotypic selection analysis!
+
+Made this data with and without block, ie average within and across blocks
+
+Analysis decisions: 
+1) ANOVA for selection, using average across blocks, so use Seln datasheet. 
+2) ANCOVA using competition treatment and blocks in model, so Seln2 datasheet. 
+3) Present selection analyses results with cohort combined. Although fitness very different between cohorts (ie lower in cohort 2), pattern of selection on root traits did not differ according to cohort. Thus our preliminary examination suggested pattern of selection similar regardless of cohort. Note: first relativized fitness within cohort before testing.
+4) Assess if species are doing something differently in terms of selection on root traits....
+
+### Averaging within and across block
+
+```{r}
+## Average across block
+Index<-which(names(df5a) %in% c("Seed_Number","AG_Biomass","MeanSdNm","Rel_Fit","AvAng",
+                                "MaxWidth","AreaConvexHull","StdAreaConvexHull","StdMaxWidth","StdAvAng",
+                                "StdAreaConvexHull2","StdMaxWidth2","StdAvAng2"))
+Seln<-aggregate(list(df5a[Index]), by = list(df5a$ML,df5a$Species,df5a$Trt,df5a$Of_exp), mean) #Average everything by maternal line, species, treatment and cohort
+colnames(Seln)[1:4]<-c("ML","Species","Trt","Of_exp")
+
+## Average within blocks
+Seln2<-aggregate(list(df5a[Index]), by = list(df5a$Block,df5a$ML,df5a$Species,df5a$Trt,df5a$Of_exp), mean) #Average everything by block*, maternal line, species, treatment and cohort
+colnames(Seln2)[1:5]<-c("Block","ML","Species","Trt","Of_exp")
+```
+
+## Correlation table
+```{r}
+All<- Seln2
+
+purpurea <- subset(Seln, Species=="P")
+hederacea <- subset(Seln, Species=="H")
+purpurea2 <- subset(Seln2, Species=="P")
+hederacea2 <- subset(Seln2, Species=="H")
+
+#Plotting Correlation Matrix
+subvars_purp <- names(purpurea) %in% c("Rel_Fit", "AvAng","MaxWidth", "AreaConvexHull")
+sub_purpurea <- purpurea[subvars_purp]
+	
+subvars_hed <- names(hederacea) %in% c("Rel_Fit", "AvAng","MaxWidth", "AreaConvexHull")
+sub_hederacea <- hederacea[subvars_hed]
+
+# Each species across treatment
+pcor<-round(cor(sub_purpurea[2:4]),2)
+lower_purp<-pcor
+lower_purp[lower.tri(pcor)]<-""
+lower_purp<-as.data.frame(lower_purp)
+lower_purp
+
+kable(lower_purp,format="html")%>%
+  kable_styling("hover", full_width = T)%>%
+    add_header_above(c("I.purpurea across treatment" = 4))
+
+
+hcor<-round(cor(sub_hederacea[2:4]),2)
+lower_hed<-hcor
+lower_hed[lower.tri(pcor)]<-""
+lower_hed<-as.data.frame(lower_hed)
+lower_hed
+
+kable(lower_hed,format="html")%>%
+  kable_styling("hover", full_width = T) %>%
+    add_header_above(c("I.hederacea across treatment" = 4))
+ 
+
+# Each species within treatment
+  # Ip alone
+palone<-droplevels(subset(purpurea,Trt=="Alone"))
+pcor<-round(cor(palone[6:8]),2)
+lower<-pcor
+lower[lower.tri(pcor)]<-""
+lower<-as.data.frame(lower)
+lower
+
+kable(lower,format="html")%>%
+  kable_styling("hover", full_width = T)%>%
+    add_header_above(c("I.purpurea grown alone" = 4))
+
+
+#Ipurp competition
+pcomp<-droplevels(subset(purpurea,Trt!="Alone"))
+pcor<-round(cor(pcomp[6:8]),2)
+lower_purp_inter<-pcor
+lower_purp_inter[lower.tri(pcor)]<-""
+lower_purp_inter<-as.data.frame(lower_purp_inter)
+lower_purp_inter
+
+kable(lower_purp_inter,format="html")%>%
+  kable_styling("hover", full_width = T)%>%
+    add_header_above(c("I.purpurea in competition" = 4))
+
+
+#I hed alone
+halone<-droplevels(subset(hederacea,Trt=="Alone"))
+
+hcor<-round(cor(halone[6:8]),2)
+lower_hed_alone<-hcor
+lower_hed_alone[lower.tri(pcor)]<-""
+lower_hed_alone<-as.data.frame(lower_hed_alone)
+lower_hed_alone
+
+kable(lower_hed_alone,format="html")%>%
+  kable_styling("hover", full_width = T)%>%
+    add_header_above(c("I.hederacea grown alone" = 4))
+
+
+#I hed in comp
+hcomp<-droplevels(subset(hederacea,Trt!="Alone"))
+hcor<-round(cor(hcomp[6:8]),2)
+lower_inter_hed<-hcor
+lower_inter_hed[lower.tri(pcor)]<-""
+lower_inter_hed<-as.data.frame(lower_inter_hed)
+lower_inter_hed
+kable(lower_inter_hed,format="html")%>%
+  kable_styling("hover", full_width = T)%>%
+    add_header_above(c("I.hederacea in competition" = 4))
+
+```
+
+
+### **Table B3** Selection gradients only per species within each treatment*
+
+```{r}
+purpureaAlone <- subset(purpurea, Trt=="Alone")
+purpureaInter <- subset(purpurea, Trt=="Inter")
+
+hederaceaAlone <- subset(hederacea, Trt=="Alone")
+hederaceaInter <- subset(hederacea, Trt=="Inter")
+hederaceaIntra <- subset(hederacea, Trt=="Intra")
+
+summary(lm(Rel_Fit ~  StdMaxWidth + StdAvAng +StdAreaConvexHull, data= purpureaAlone))
+summary(lm(Rel_Fit ~  StdMaxWidth + StdAvAng + StdAreaConvexHull , data= purpureaInter))
+
+
+#Ihed
+
+summary(lm(Rel_Fit ~  StdMaxWidth + StdAvAng + StdAreaConvexHull  , data= hederaceaAlone))
+summary(lm(Rel_Fit ~  StdMaxWidth + StdAvAng + StdAreaConvexHull  , data= hederaceaInter))
+summary(lm(Rel_Fit ~  StdMaxWidth + StdAvAng + StdAreaConvexHull  , data= hederaceaIntra))
+
+```
+
+
+## **Table B4 ** F-statistics: Selection gradients using ANCOVA to test Trt x Trait * 
+```{r ANCOVA to test Trt, Block, and all interactions in selection gradients analysis}
+#Selection gradients using ANCOVA to test trt:trait interactions per species, block:trait etc 
+#While all effects are in model, we present a summary of the analysis in text
+
+anova(lm(Rel_Fit ~  StdMaxWidth + StdAvAng + StdAreaConvexHull + Trt + Block + Block:Trt + Trt:StdMaxWidth +  Trt:StdAvAng + Trt:StdAreaConvexHull + Block:StdMaxWidth + Block:StdAvAng + Block:StdAreaConvexHull + Block:Trt:StdMaxWidth + Block:Trt:StdAvAng + Block:Trt:StdAreaConvexHull, data= purpurea2))
+
+
+# Subset I.hederacea between Alone and Inter and Alone and Intra
+
+hederacea2.intra<-subset(hederacea2,Trt!="Inter")
+hederacea2.inter<-subset(hederacea2,Trt!="Intra")
+
+anova(lm(Rel_Fit ~  StdMaxWidth + StdAvAng + StdAreaConvexHull + Trt + Block + Block:Trt + Trt:StdMaxWidth +  Trt:StdAvAng + Trt:StdAreaConvexHull + Block:StdMaxWidth + Block:StdAvAng + Block:StdAreaConvexHull + Block:Trt:StdMaxWidth + Block:Trt:StdAvAng + Block:Trt:StdAreaConvexHull, data= hederacea2.inter))
+
+
+anova(lm(Rel_Fit ~  StdMaxWidth + StdAvAng + StdAreaConvexHull + Trt + Block + Block:Trt + Trt:StdMaxWidth +  Trt:StdAvAng + Trt:StdAreaConvexHull + Block:StdMaxWidth + Block:StdAvAng + Block:StdAreaConvexHull + Block:Trt:StdMaxWidth + Block:Trt:StdAvAng + Block:Trt:StdAreaConvexHull, data= hederacea2.intra)) 
+```
+
+- No evidence of selection for any trait in *intra* specific competition, but in *inter* there is.
+
+# Suplimentary analysis 
+## Supplimentary Selection differentials per species across both treatments
+
+```{r selection differentials}
+#Selection differentials per species across both treatments
+summary(lm(Rel_Fit ~  StdMaxWidth , data= purpurea))
+summary(lm(Rel_Fit ~  StdAvAng , data= purpurea))
+summary(lm(Rel_Fit ~  StdAreaConvexHull  , data= purpurea))
+
+summary(lm(Rel_Fit ~  StdMaxWidth , data= hederacea))
+summary(lm(Rel_Fit ~  StdAvAng , data= hederacea))
+summary(lm(Rel_Fit ~  StdAreaConvexHull  , data= hederacea))
+
+
+#Selection differentials using ANCOVA to test trt:trait interactions per species
+
+summary(lm(Rel_Fit ~  StdMaxWidth + Trt + Trt:StdMaxWidth, data= purpurea))
+summary(lm(Rel_Fit ~  StdAvAng + Trt + Trt:StdAvAng, data= purpurea))
+summary(lm(Rel_Fit ~  StdAreaConvexHull + Trt + Trt:StdAreaConvexHull , data= purpurea))
+
+summary(lm(Rel_Fit ~  StdMaxWidth+ Trt + Trt:StdMaxWidth , data= hederacea))
+summary(lm(Rel_Fit ~  StdAvAng + Trt + Trt:StdAvAng, data= hederacea))
+summary(lm(Rel_Fit ~  StdAreaConvexHull+ Trt + Trt:StdAreaConvexHull  , data= hederacea))
+```
+
+## Suplimentary Selection differentials per species per treatment
+```{r}
+summary(lm(Rel_Fit ~  StdMaxWidth , data= purpureaAlone))
+summary(lm(Rel_Fit ~  StdAvAng , data= purpureaAlone))
+summary(lm(Rel_Fit ~  StdAreaConvexHull  , data= purpureaAlone))
+
+summary(lm(Rel_Fit ~  StdMaxWidth , data= purpureaInter))
+summary(lm(Rel_Fit ~  StdAvAng , data= purpureaInter))
+summary(lm(Rel_Fit ~  StdAreaConvexHull  , data= purpureaInter))
+
+summary(lm(Rel_Fit ~  StdMaxWidth , data= hederaceaAlone))
+summary(lm(Rel_Fit ~  StdAvAng , data= hederaceaAlone))
+summary(lm(Rel_Fit ~  StdAreaConvexHull  , data= hederaceaAlone))
+
+summary(lm(Rel_Fit ~  StdMaxWidth , data= hederaceaInter))
+summary(lm(Rel_Fit ~  StdAvAng , data= hederaceaInter))
+summary(lm(Rel_Fit ~  StdAreaConvexHull  , data= hederaceaInter))
+```
+
+
+## Supplimentary Table Number TBD  F-statistics for sel diff
+
+```{r Correlated traits:ANCOVA to test Trt, Block, and all interactions in selection differential analysis}
+#Selection differential using ANCOVA to test trt:trait interactions per species, block:trait etc 
+#While all effects are in model, we present a summary of the analysis in text
+
+anova(lm(Rel_Fit ~  StdMaxWidth*Block+StdMaxWidth*Trt+StdMaxWidth:Trt:Block, data= purpurea2)) # Root system width
+anova(lm(Rel_Fit ~  StdAreaConvexHull*Block+StdAreaConvexHull*Trt+StdAreaConvexHull:Trt:Block, data= purpurea2)) # Root system size
+anova(lm(Rel_Fit ~  StdAvAng*Block+StdAvAng*Trt+StdAvAng:Trt:Block, data= purpurea2)) # Root system size
+
+anova(lm(Rel_Fit ~  StdMaxWidth*Block+StdMaxWidth*Trt+StdMaxWidth:Trt:Block, data= hederacea2)) # Root system width
+anova(lm(Rel_Fit ~  StdAreaConvexHull*Block+StdAreaConvexHull*Trt+StdAreaConvexHull:Trt:Block, data= hederacea2)) # Root system size
+anova(lm(Rel_Fit ~  StdAvAng*Block+StdAvAng*Trt+StdAvAng:Trt:Block, data= hederacea2)) # Root system size
+```
+
+## Supplimnetary table Selection differential on correlated traits
+```{r}
+## Ipurp
+summary(lm(Rel_Fit ~  StdMaxWidth*StdAvAng , data= purpureaAlone))
+summary(lm(Rel_Fit ~  StdAvAng*StdAreaConvexHull , data= purpureaAlone))
+summary(lm(Rel_Fit ~  StdAreaConvexHull*StdMaxWidth  , data= purpureaAlone))
+
+summary(lm(Rel_Fit ~  StdMaxWidth*StdAvAng, data= purpureaInter))
+summary(lm(Rel_Fit ~  StdAvAng*StdAreaConvexHull, data= purpureaInter))
+summary(lm(Rel_Fit ~  StdAreaConvexHull*StdMaxWidth, data= purpureaInter))
+
+### Ihed
+summary(lm(Rel_Fit ~  StdMaxWidth*StdAvAng , data= hederaceaAlone))
+summary(lm(Rel_Fit ~  StdAvAng*StdAreaConvexHull , data= hederaceaAlone))
+summary(lm(Rel_Fit ~  StdAreaConvexHull*StdMaxWidth  , data= hederaceaAlone))
+
+summary(lm(Rel_Fit ~  StdMaxWidth*StdAvAng, data= hederaceaInter))
+summary(lm(Rel_Fit ~  StdAvAng*StdAreaConvexHull, data= hederaceaInter))
+summary(lm(Rel_Fit ~  StdAreaConvexHull*StdMaxWidth, data= hederaceaInter))
+```
+
+## Supplimentary table Multivariate analysis on correlated traits 
+```{r}
+summary(lm(Rel_Fit ~  StdMaxWidth*StdAreaConvexHull+StdMaxWidth:StdAvAng+StdAvAng:StdAreaConvexHull , data= purpureaAlone))
+
+summary(lm(Rel_Fit ~  StdMaxWidth*StdAreaConvexHull+StdMaxWidth:StdAvAng+StdAvAng:StdAreaConvexHull, data= purpureaInter))
+
+summary(lm(Rel_Fit ~  StdMaxWidth*StdAreaConvexHull+StdMaxWidth:StdAvAng+StdAvAng:StdAreaConvexHull , data= hederaceaAlone))
+
+summary(lm(Rel_Fit ~  StdMaxWidth*StdAreaConvexHull+StdMaxWidth:StdAvAng+StdAvAng:StdAreaConvexHull, data= hederaceaInter))
+```
+
+## ANCOVA featuring correlated traits with factor treatment , block and their two way interactions
+*F-statistics: Selection DIFF using ANCOVA to test Trt x Trait x Trait interaction * 
+I am **unsure** here if I include the linear terms of the correlated traits in the ANCOVA _or_ just the interaction trait terms and their interactions with treatment, block and trt X block
+
+```{r}
+#ANCOVA to test Trt, Block, and all interactions in selection differential analysis
+#Selection differential using ANCOVA to test trt:trait interactions per species, block:trait etc 
+#While all effects are in model, we present a summary of the analysis in text
+
+# I am unsure here if I include the linear terms of the correlated traits in the ANCOVA or just the interaction trait terms and their interactions with treatment, block and trt X block
+
+#MODEL: Rel Fit ~ Trait A x Trait B + Trait A + Trait B + Trait A x Trait B x Trt + Trait A x Trait B x Block+ Trait A x Trait B x Trt x Block
+
+#Ipurpurea
+
+anova(lm(Rel_Fit ~StdMaxWidth:StdAreaConvexHull+StdMaxWidth+StdAreaConvexHull+StdMaxWidth:StdAreaConvexHull:Trt+StdMaxWidth:StdAreaConvexHull:Block+StdMaxWidth:StdAreaConvexHull:Trt:Block,data= purpurea2)) # Root width x Root size
+    
+anova(lm(Rel_Fit ~StdMaxWidth:StdAvAng+StdMaxWidth+StdAvAng+StdMaxWidth:StdAvAng:Trt+StdMaxWidth:StdAvAng:Block+StdMaxWidth:StdAvAng:Trt:Block, data= purpurea2)) # Root width X Root angle
+
+anova(lm(Rel_Fit ~StdAreaConvexHull:StdAvAng+StdAreaConvexHull+StdAvAng+StdAreaConvexHull:StdAvAng:Trt+StdAreaConvexHull:StdAvAng:Block+StdAreaConvexHull:StdAvAng:Trt:Block, data= purpurea2)) # Root size X Root angle
+
+# Ihederacea
+
+anova(lm(Rel_Fit ~StdMaxWidth:StdAreaConvexHull+StdMaxWidth+StdAreaConvexHull+StdMaxWidth:StdAreaConvexHull:Trt+StdMaxWidth:StdAreaConvexHull:Block+StdMaxWidth:StdAreaConvexHull:Trt:Block,hederacea2)) # Root width x Root size
+    
+anova(lm(Rel_Fit ~StdMaxWidth:StdAvAng+StdMaxWidth+StdAvAng+StdMaxWidth:StdAvAng:Trt+StdMaxWidth:StdAvAng:Block+StdMaxWidth:StdAvAng:Trt:Block, data= hederacea2)) # Root width X Root angle
+
+anova(lm(Rel_Fit ~StdAreaConvexHull:StdAvAng+StdAreaConvexHull+StdAvAng+StdAreaConvexHull:StdAvAng:Trt+StdAreaConvexHull:StdAvAng:Block+StdAreaConvexHull:StdAvAng:Trt:Block, data= hederacea2)) # Root size X Root angle
+```
+
+## Joint quadractic selection
+
+```{r quadratic selection}
+###Joint quadractic selection
+
+#Square values
+purpurea$StdAreaConvexHull2<-(purpurea$StdAreaConvexHull*purpurea$StdAreaConvexHull)
+purpurea$StdMaxWidth2<-(purpurea$StdMaxWidth*purpurea$StdMaxWidth)
+purpurea$StdAvAng2<-(purpurea$StdAvAng*purpurea$StdAvAng)
+purpurea$StdAreaConvexHull2<-(purpurea$StdAreaConvexHull*purpurea$StdAreaConvexHull)
+
+hederacea$StdAreaConvexHull2<-(hederacea$StdAreaConvexHull*hederacea$StdAreaConvexHull)
+hederacea$StdMaxWidth2<-(hederacea$StdMaxWidth*hederacea$StdMaxWidth)
+hederacea$StdAvAng2<-(hederacea$StdAvAng*hederacea$StdAvAng)
+hederacea$StdAreaConvexHull2<-(hederacea$StdAreaConvexHull*hederacea$StdAreaConvexHull)
+
+summary(lm(Rel_Fit ~ StdMaxWidth + StdAvAng + StdAreaConvexHull + StdMaxWidth2 + StdAvAng2 + StdAreaConvexHull2, data= purpureaAlone))
+
+summary(lm(Rel_Fit ~ StdMaxWidth + StdAvAng + StdAreaConvexHull + StdMaxWidth2 + StdAvAng2 + StdAreaConvexHull2, data= purpureaInter))
+	
+summary(lm(Rel_Fit ~ StdMaxWidth + StdAvAng + StdAreaConvexHull + StdMaxWidth2 + StdAvAng2 + StdAreaConvexHull2, data= hederaceaAlone))
+
+summary(lm(Rel_Fit ~ StdMaxWidth + StdAvAng + StdAreaConvexHull + StdMaxWidth2 + StdAvAng2 + StdAreaConvexHull2, data= hederaceaInter))
+
+```
+
+## Total selection
+```{r total seln}
+###Total Selection
+	with(purpurea, cor.test(Rel_Fit, StdMaxWidth))
+	with(purpurea, cor.test(Rel_Fit, StdAvAng))
+	with(purpurea, cor.test(Rel_Fit, StdAreaConvexHull))
+
+	
+	with(hederacea, cor.test(Rel_Fit, StdMaxWidth))
+	with(hederacea, cor.test(Rel_Fit, StdAvAng))
+	with(hederacea, cor.test(Rel_Fit, StdAreaConvexHull))
+```
+
+
+
+#Graphics / Phenome
+```{r,comment=FALSE,warning=FALSE,error=T,message=F}
+library(cowplot)
+library(gridExtra)
+library(grid)
+#Aesthetics
+Tx<-theme(axis.text.x = element_text(face="bold",  
+                                     size=15),#,color="black"),
+          axis.text.y = element_text(face="bold", 
+                                     size=15),#,color="black"),
+          axis.title.x = element_text(size=20),
+          axis.title.y = element_text(size=20))+
+          theme(plot.title=element_text(face="italic",size=30,hjust=0.5),
+                legend.text=element_text(size=15))
+
+          ### Figure
+
+#Scatter plot and line root angle
+RootAngle<-ggplot(data=All%>%filter(Rel_Fit<3.5&AvAng<80,Trt!="Intra"),aes(x=AvAng,y=Rel_Fit))+
+geom_point(size=1,alpha=0.7,aes(color=Trt),fill="white")+
+stat_smooth(method="lm",se=F,size=2,aes(color=Trt,linetype=Trt),fullrange = T)+
+scale_linetype_manual(values=c("solid", "dashed"))+  
+scale_color_manual(values=c('grey','black'))+
+  ylab("Relative fitness")+
+  xlab("Average root angle (degrees)")+
+  theme_classic()+
+#theme(legend.position = "none")+
+  Tx+
+  theme(axis.title.y=element_blank())+
+  facet_grid(~Species)
+
+ 
+### Scatterplot of root system width on relative fitness
+
+RootSize<-ggplot(data=All%>%filter(Rel_Fit<3,MaxWidth<9,Trt!="Intra"),aes(x=AreaConvexHull,y=Rel_Fit))+
+geom_point(size=1,alpha=0.7,aes(color=Trt),fill="white")+
+stat_smooth(method="lm",se=F,size=2,aes(color=Trt,linetype=Trt),fullrange = T)+
+scale_linetype_manual(values=c("solid", "dashed"))+  
+scale_color_manual(values=c('grey','black'))+
+  ylab("Relative fitness")+
+  xlab("Root system size (cm^2)")+
+  theme_classic()+
+  #Remove Y label but comment out to keep
+#theme(legend.position = "none")+
+  Tx+
+  theme(axis.title.y=element_blank())+
+  facet_grid(~Species) 
+
+  
+# extract Legend 
+#legend <- get_legend()
+  
+#combine using cowplot
+plot<-plot_grid(RootAngle,RootSize,nrow=2,align='vh', vjust=1, scale = 1)
+
+plot
+
+#create common x and y labels
+
+y.grob <- textGrob("Relative Fitness", 
+                   gp=gpar( col="black", fontsize=15), rot=90)
+
+x.grob <- textGrob("", 
+                   gp=gpar(fontface="bold", col="black", fontsize=15)) # Not used
+```
+
+## Plot ea species seperate
+
+```{r}
+# Define aesthetics for phenome
+
+PHENOME<-theme(plot.background = element_rect(fill = "black",colour = "black"))+ # Black background
+theme(axis.line.x = element_line(color="white"),
+        axis.line.y = element_line(color="white"))+  
+theme(axis.text.x = element_text(face="bold",  
+                                     size=15,color="white"), # X axis tck labels
+        axis.text.y = element_text(face="bold",  
+                                     size=15,color="white"))+ #Y axis tick labels
+ theme(axis.title.y = element_text(size = rel(1.5), angle = 90,color="white"))+ # Y axis title label
+  theme(axis.title = element_text(size = rel(1.5), angle = 90,color="white"))+
+  theme(axis.title.x = element_text(size = rel(1.5), angle =0,color="white"))+ # X axis title label
+theme(legend.background = element_rect(colour = 'black', fill = 'black'),legend.text = element_text(color="white")) #Legend text/background
+```
+
+## PCA
+
+```{r}
+
+BRT.2<-na.omit(BRT[which(names(BRT)%in%c("AvAng","MaxWidth","AreaConvexHull","Species","UniqId"))])
+#Version of traits not residuals
+
+res.pca<-PCA(BRT.2,quali.sup=c(1,2),scale.unit=T,graph=T)#scale mean of zero and std of one
+
+# Extract the results for variables
+var <- get_pca_var(res.pca)
+
+# Coordinates of variables
+CoordinateVar<-data.frame(var$coord)
+
+# Contribution of variables
+ContribVar<-data.frame(var$contrib)
+
+# Contributions of variables to PC1
+fviz_contrib(res.pca, choice = "var", axes = 1, top = 10)
+
+# Contributions of variables to PC2
+fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
+
+#Add color and ellipse
+p<-fviz_pca_ind(res.pca, label="none", habillage=BRT.2$Species,
+                addEllipses=TRUE, ellipse.level=0.95,palette = c("#1c9099", "#addd8e")) # Feel free to modify species color here!
+p+ theme(plot.background = element_rect(fill = "black"))+ # Black background
+  theme(axis.text.x = element_text(face="bold",  
+                                     size=15,color="white"), # X axis tck labels
+        axis.text.y = element_text(face="bold",  
+                                     size=15,color="white"))+ #Y axis tick labels
+  theme(panel.background = element_rect(fill = "black",
+                                colour = "black"))+
+  theme(panel.grid.major = element_line(colour = "white"))+ # Grid lines
+ theme(axis.title.y = element_text(size = rel(1.5), angle = 90,color="white"))+ # Y axis title label
+  theme(axis.title.x = element_text(size = rel(1.5), angle =0,color="white"))+ # X axis title label
+theme(legend.background = element_rect(colour = 'black', fill = 'black'),legend.text = element_text(color="white")) #Legend text/background
+
+#Obtain coordinates of indiviuals
+pcaDat<-data.frame(res.pca$ind$coord)
+
+#Incorporate  info
+pcaDat$Species<-BRT$Species #Species
+pcaDat$UniqId<-BRT$UniqId   #UniqId
+pcaDat$ML<-BRT$ML #Maternal line
+pcaDat$Trt<-BRT$Trt #Treatment
+pcaDat$Combos<-BRT$Combos #Pairwise combo
+pcaDat$Block<-as.factor(BRT$Block) # Block
+
+#Plot PCA results in plotly
+
+library(plotly)
+
+PCA.scatter<-ggplot(pcaDat,aes(Dim.1,Dim.2,color=Species,text =      paste("UniqId", UniqId)))+
+              geom_point()
+ggplotly(PCA.scatter)
+```
+
+
+## Phenome version (not done yet)
+```{r}
+par(mfrow=c(1,1))
+P1<-ggplot(data=All%>%filter(Rel_Fit<3,MaxWidth<9,Species=="P"),aes(x=StdAreaConvexHull,y=Rel_Fit))+  
+geom_point(aes(color=Trt))+
+scale_color_manual(values=c('#feb24c','#7fcdbb'))+
+geom_abline(intercept = 1.07, slope = -0.15, color="#7fcdbb", 
+                 linetype="dashed", size=1.5)+
+geom_abline(intercept = 1.17, slope = 0.63, color="#feb24c", 
+                 linetype="solid", size=1.5)+
+ # PHENOME+
+  ylab("Relative fitness")+
+  xlab("Root size (cm^2)")
+
+P2<-ggplot(data=All%>%filter(Rel_Fit<3.5&AvAng<80,Species=="H",Trt!="Intra"),aes(x=StdAvAng,y=Rel_Fit))+  
+geom_point(aes(color=Trt))+
+scale_color_manual(values=c('#feb24c','#7fcdbb'))+
+geom_abline(intercept = 0.97, slope = 0.22, color="#7fcdbb", 
+                 linetype="dashed", size=1.5)+
+geom_abline(intercept = 1.04, slope = 0.01, color="#feb24c", 
+                 linetype="solid", size=1.5)+
+PHENOME+
+  ylab("Relative fitness")+
+  xlab("Root angle (degrees)")
+
+ggplot(data=All%>%filter(Rel_Fit<3.5&AvAng<80,Species=="H",Trt!="Inter"),aes(x=StdAvAng,y=Rel_Fit))+  
+geom_point(aes(color=Trt))+
+scale_color_manual(values=c('#feb24c','#7fcdbb'))+
+geom_abline(intercept = 0.97, slope = 0.22, color="#7fcdbb", 
+                 linetype="dashed", size=1.5)+
+geom_abline(intercept = 1.04, slope = 0.01, color="#feb24c", 
+                 linetype="solid", size=1.5)+
+PHENOME+
+  ylab("Relative fitness")+
+  xlab("Root angle (degrees)")
+```
+
+#
+```{r}
+All1<-unique(All[c("Species","Trt","StdAreaConvexHull","Rel_Fit","StdAvAng")])
+
+
+Mean1<-data.frame(All1%>%filter(Species=="P")%>%
+            group_by(Trt)%>%
+            summarise(MeanSize=mean(StdAreaConvexHull),MeanFit=mean(Rel_Fit)))
+
+Mean2<-data.frame(All1%>%filter(Species!="P")%>%
+            group_by(Trt)%>%
+            summarise(MeanAngle=mean(StdAvAng),MeanFit=mean(Rel_Fit)))
+
+
+Beta1Alone=paste("beta[Alone] == ",0.56)
+Beta1Inter=paste("beta[Inter] == ",-0.15)
+
+Beta2Alone=paste("beta[Alone] == ",0.01)
+Beta2Inter=paste("beta[Inter] == ",0.23)
+
+
+
+plot1<-ggplot(data=All%>%filter(Species=="P"),aes(x=StdAreaConvexHull,y=Rel_Fit))+  
+geom_point(aes(color=Trt))+
+scale_color_manual(values=c('grey','black'))+
+geom_abline(intercept = 1.07, slope = -0.15, color="black", 
+                 linetype="dashed", size=1.5)+
+geom_abline(intercept = 1.17, slope = 0.63, color="grey", 
+                 linetype="solid", size=1.5)+
+  ylab("Relative fitness")+
+  xlab("Standardized root size")+
+  theme_classic()+
+  Tx+
+  ggtitle("I. purpurea")+
+  annotate("text",label=as.character(Beta1Alone),parse=T,x=0.8,y=5,size=4)+
+  annotate("text",label=paste("P = 0.08^"),x=1.3,y=5,size=4)+
+  annotate("text",label=as.character(Beta1Inter),parse=T,x=0.8,y=4.8,size=4)+
+  annotate("text",label=paste("P = 0.51"),x=1.3,y=4.8,size=4)
+
+
+plot2<-ggplot(data=All%>%filter(Species=="H",Trt!="Intra"),aes(x=StdAvAng,y=Rel_Fit))+  
+geom_point(aes(color=Trt))+
+scale_color_manual(values=c('grey','black'))+
+geom_abline(intercept = 0.97, slope = 0.22, color="black", 
+                 linetype="dashed", size=1.5)+
+geom_abline(intercept = 1.04, slope = 0.01, color="grey", 
+                 linetype="solid", size=1.5)+
+  ylab("")+
+  xlab("Standardized root angle")+
+  theme_classic()+
+  Tx+
+  ggtitle("I. hederacea")+
+  annotate("text",label=as.character(Beta2Alone),parse=T,x=2.5,y=3,size=4)+
+  annotate("text",label=paste("P = 0.86"),x=3.2,y=3,size=4)+
+  annotate("text",label=as.character(Beta2Inter),parse=T,x=2.5,y=2.8,size=4)+
+  annotate("text",label=paste("P = 0.03*"),x=3.2,y=2.8,size=4)
+
+
+ggarrange(plot1,plot2,common.legend = T)
+```
+
+
+```{r}
+RawSize<-ggplot()+
+geom_histogram(data=BRT,aes(AreaConvexHull,fill=Species))+
+geom_dotplot(data=BRT,aes(AreaConvexHull,fill=Species))+
+ylab('Frequency')+
+xlab('Root size cm^2')+
+  ggtitle('Observed root size')
+
+RawAngle<-ggplot()+
+geom_histogram(data=BRT,aes(AvAng,fill=Species))+
+geom_dotplot(data=BRT,aes(AvAng,fill=Species))+
+ylab('Frequency')+
+xlab('Root size cm^2')+
+  ggtitle('Observed root angle')
+
+
+AveragedSize<-ggplot()+
+geom_histogram(data=All,aes(AreaConvexHull,fill=Species))+
+geom_dotplot(data=All,aes(AreaConvexHull,fill=Species))+
+ylab('Frequency')+
+xlab('Root size cm^2')+
+  ggtitle('Averaged root size')
+
+AveragedAngle<-ggplot()+
+geom_histogram(data=All,aes(AvAng,fill=Species))+
+geom_dotplot(data=All,aes(AvAng,fill=Species))+
+ylab('Frequency')+
+xlab('Root size cm^2')+
+  ggtitle('Averaged root angle')
+
+
+ggarrange(RawSize,RawAngle,AveragedSize,AveragedAngle,common.legend = T)
+```
+

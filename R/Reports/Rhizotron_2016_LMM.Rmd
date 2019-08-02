@@ -1,0 +1,253 @@
+---
+title: "Rhizotron-Study"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    highlight: tango
+---
+
+# Set up R
+
+```{r setup, include=FALSE}
+# Rhizotron study re-evaluated
+# April 25, 2018
+
+#Load libraries
+library(tidyr)
+library(dplyr)
+library(factoextra)
+library(FactoMineR)
+library(ggplot2)
+library(lmerTest)
+library(emmeans)
+library(knitr)
+library(kableExtra)
+library(PerformanceAnalytics)
+library(ggpubr)
+
+source("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/R/SummarySE.R")
+
+#Save theme text setting
+Tx<-theme(axis.text.x = element_text(face="bold",  
+                                     size=15),#,color="black"),
+          axis.text.y = element_text(face="bold", 
+                                     size=15),#,color="black"),
+          axis.title.x = element_text(size=15,face="bold"),
+          axis.title.y = element_text(size=15,face="bold"))
+```
+
+#Open and prepare data
+
+```{r,message=FALSE,comment=FALSE,warning=FALSE}
+# Root architecture trait data from rhizotron experiment
+totaldat<-read.csv("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/CleanData/Rhiz_root_traits.csv")
+#Check structure and correct structure
+str(totaldat)
+totaldat$Id<-as.factor(totaldat$Id)
+totaldat$Experiment<-as.factor(totaldat$Experiment)
+```
+#Preliminary data assesment and analysis
+
+# Sample size
+
+## Count species 
+```{r warning=FALSE,comment=FALSE,message=F}
+#detach("package:plyr", unload=TRUE)
+RhizCount0<-data.frame(totaldat)%>%count(Species)
+RhizCount0 %>%
+  kable() %>%
+  kable_styling(full_width = F)%>%
+  add_header_above(c("Sample size by species"=2))
+```
+
+## Count species by experiment
+```{r warning=FALSE,comment=FALSE,message=F}
+RhizCount<-data.frame(totaldat%>%group_by(Species)%>%count(Experiment))
+TotalRow<-data.frame(Species="Total",Experiment="Both",n=sum(RhizCount$n),stringsAsFactors = FALSE) #Row with total
+
+RhizCount<-rbind(RhizCount,TotalRow)
+
+RhizCount %>%
+kable() %>%
+kable_styling()%>%
+    scroll_box(width = "500px", height = "200px")
+```
+
+## Count species and maternal line per treatment
+```{r warning=FALSE,comment=FALSE,message=F}
+RhizCount2<-data.frame(totaldat%>%group_by(Species)%>%count(Code))
+RhizCount2 %>%
+  kable() %>%
+  kable_styling()%>%
+  scroll_box(width = "500px", height = "200px")
+
+```
+
+## Boxplots
+```{r warning=FALSE,comment=FALSE,message=F}
+dat<-data.frame(totaldat %>% filter(Total.Area<200))
+
+boxplots<-function(trait){ggboxplot(dat, x = "Population", y = trait, fill = "Species",add = "jitter")+
+  labs(title=names(dat[trait])) +
+  labs(y="Variation", x="Population")+
+scale_fill_manual(values = c("darkgrey","gold"))  +
+scale_color_manual(values = c("darkgrey","gold"))}
+
+trait<-c("AvAng","Total.Area","RootSystemWidth","PrimaryRootLength")
+titles<-c("Root angle","Root surface area","Root system width","Primary root length")
+ytitle<-c("Angle measured in radians","Area cm^2","Width in cm","Length in cm")
+
+result <- vector("list",4)
+
+for(i in 1:4){
+boxplots<-ggboxplot(dat, x = "Population", y = trait[i], fill = "Species",add = "jitter")+
+labs(title=titles[i]) +
+labs(y=ytitle[i], x="Population")+
+scale_fill_manual(values=c('lightgrey','purple'))  +
+scale_color_manual(values=c('lightgrey','purple'))+
+theme(plot.title = element_text(hjust = 0.5))
+result[[i]] <- boxplots 
+}
+#Print the first matrix on screen
+
+do.call("ggarrange",c(result,common.legend = TRUE, legend = "bottom"))
+
+```
+
+*Ihederacea*
+```{r warning=FALSE,comment=FALSE,message=F}
+traits<-c("Species","ML","PrimaryRootLength","AvAng","RootSystemWidth","Total.Area")
+#Calculate family means
+root.means<-totaldat[which(colnames(totaldat) %in% traits)]%>%
+            group_by(Species,ML) %>%
+            summarise_all(mean)
+
+Hed1<-droplevels(subset(root.means,Species=="Ihed")) #Subset for Ihed
+HT<-Hed1[c(3:6)] # Matrix of only root traits
+chart.Correlation(HT, histogram=TRUE, pch=19) #Correlation plot
+```
+
+*Ipurpurea*
+```{r warning=FALSE,comment=FALSE}
+Purp1<-droplevels(subset(root.means,Species=="Ip")) #Subset for Ipurp
+PT<-Purp1[c(3:6)] #Matrix of only root traits
+chart.Correlation(PT, histogram=TRUE, pch=19)# Correlation plot
+```
+
+# Mixed models on on traits (both species)
+
+```{r warning=FALSE,comment=FALSE}
+#Average root angle
+mod1.angleAvAng<-lmer(AvAng~Species+Experiment+Population+
+                         (1|ML),totaldat)
+anova(mod1.angleAvAng) # F-statistics for fixed terms
+ranova(mod1.angleAvAng) # Log-liklihood for random terms
+emmeans(mod1.angleAvAng,"Species")  #Least square means by species
+
+#Primary root length
+mod1.primary<-lmer(PrimaryRootLength~Species+Population+Experiment+(1|ML),totaldat)
+anova(mod1.primary) # F-statistics for fixed terms
+ranova(mod1.primary) # Log-liklihood for random terms
+emmeans(mod1.primary, "Species")#Least square means by species
+
+#Root system width
+mod1.RSW<-lmer(RootSystemWidth~Species+Population+Experiment+(1|ML),totaldat)
+anova(mod1.RSW) # F-statistics for fixed terms
+ranova(mod1.RSW) # Log-liklihood for random terms
+emmeans(mod1.RSW, "Species") #Least square means by species 
+
+#Total root surface area
+mod1.TA<-lmer(Total.Area~Species+Population+Experiment+(1|ML),totaldat)
+anova(mod1.TA) # F-statistics for fixed terms
+ranova(mod1.TA) # Log-liklihood for random terms
+emmeans(mod1.TA, "Species") #Least square means by species 
+```
+
+#### Mixed models on on traits within ea species separate
+
+```{r warning=FALSE,comment=FALSE}
+#Mixed models on on traits within Ihed and Ip
+Ip1<-droplevels(subset(totaldat,Species=="Ip"))
+Ihed1<-droplevels(subset(totaldat,Species=="Ihed"))
+
+Ip2<-droplevels(subset(totaldat,Species=="Ip"))
+Ihed2<-droplevels(subset(totaldat,Species=="Ihed"))
+
+# First I.hederacea
+
+mod1.angleAvH<-lmer(AvAng~Experiment+Population+
+                     (1|ML),Ihed1)
+anova(mod1.angleAvH) #F statistics for fixed effects
+ranova(mod1.angleAvH) #LRT statistics for ranodm effects
+
+mod1.primaryH<-lmer(PrimaryRootLength~Experiment+Population+(1|ML),Ihed1)
+anova(mod1.primaryH) #F statistics for fixed effects
+ranova(mod1.primaryH) #LRT statistics for random effects
+
+mod1.RSW<-lmer(RootSystemWidth~Experiment+Population+(1|ML),Ihed1)
+anova(mod1.RSW) #F statistics for fixed effects
+ranova(mod1.RSW) #LRT statistics for random effects
+
+### Now Ip
+#Average root angle
+mod1.angleAVP<-lmer(AvAng~Population+Experiment+
+                   (1|ML),Ip1)
+anova(mod1.angleAVP) #F statistics for fixed effects
+ranova(mod1.angleAVP) #LRT statistics for random effects
+
+#Primary root length
+mod1.primaryP<-lmer(PrimaryRootLength~Population+Experiment+(1|ML),Ip1)
+anova(mod1.primaryP) #F statistics for fixed effects
+ranova(mod1.primaryP) #LRT statistics for random effects
+
+mod1.RSWp<-lmer(RootSystemWidth~Population+Experiment+(1|ML),Ip1)
+anova(mod1.RSWp) #F statistics for fixed effects
+ranova(mod1.RSWp) #LRT statistics for random effects
+
+mod1.TRSp<-lmer(Total.Area~Population+Experiment+(1|ML),Ip2)
+anova(mod1.TRSp)
+ranova(mod1.TRSp)
+```
+
+#PCA
+```{r,message=FALSE,comment=FALSE,warning=FALSE}
+allData<-na.omit(totaldat) #Merge
+
+#PCA
+var.sp<-allData[c("Species","Total.Area","AvAng","PrimaryRootLength","RootSystemWidth")]
+res.pca<-PCA(var.sp,quali.sup=1,scale.unit=T,graph=T)#scale mean of zero and std of one
+#Dim 1 versus Dim 2
+plot.PCA(res.pca,axes=c(1,2),choix="ind",habillage=1,col.hab=c('#bdbdbd','black')) # 
+
+p<-fviz_pca_ind(res.pca, label="none", habillage=var.sp$Species,
+                addEllipses=TRUE, ellipse.level=0.95)+
+  theme_bw()
+p + scale_color_manual(values=c('#bdbdbd','black'))+
+  scale_fill_manual(values = c("white","white"))+
+  theme_classic()+
+  Tx+
+  ylab("PCA 2 (29.1%)")+
+  xlab("PCA 1 (37.2%)")
+  
+```
+
+###Loading scores
+
+```{r,message=FALSE,comment=FALSE,warning=FALSE}
+# Bar graph of loading scores
+Loads<-data.frame(res.pca$var$contrib)
+Loads$Trait<-c("Root area","Root angle","primary root length","Root system width")
+# Use position=position_dodge()
+q<-ggplot(data=Loads, aes(x=Trait, y=Dim.1), fill="black") +
+  geom_bar(stat="identity", position=position_dodge())+
+  theme_classic()
+q +Tx+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+ 
+r<-ggplot(data=Loads, aes(x=Trait, y=Dim.2), fill="black") +
+  geom_bar(stat="identity", position=position_dodge())+
+  theme_classic()
+r +Tx+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+```
