@@ -193,11 +193,6 @@ df5a$StdAreaConvexHull<-(df5a$AreaConvexHull-mean(df5a$AreaConvexHull))/sd(df5a$
 df5a$StdMaxWidth<-(df5a$MaxWidth-mean(df5a$MaxWidth))/sd(df5a$MaxWidth)
 df5a$StdAvAng<-(df5a$AvAng-mean(df5a$AvAng))/sd(df5a$AvAng)
 
-# Square values
-df5a$StdAreaConvexHull2<-(df5a$StdAreaConvexHull*df5a$StdAreaConvexHull)
-df5a$StdMaxWidth2<-(df5a$StdMaxWidth*df5a$StdMaxWidth)
-df5a$StdAvAng2<-(df5a$StdAvAng*df5a$StdAvAng)
-
 ######################################################################################
                                 ### Selection analysis
 #######################################################################################
@@ -213,13 +208,13 @@ df5a$StdAvAng2<-(df5a$StdAvAng*df5a$StdAvAng)
 
 ## Average across block
 Index<-which(names(df5a) %in% c("Seed_Number","AG_Biomass","MeanSdNm","Rel_Fit","AvAng",
-                                "MaxWidth","AreaConvexHull","StdAreaConvexHull","StdMaxWidth","StdAvAng",
-                                "StdAreaConvexHull2","StdMaxWidth2","StdAvAng2"))
-Seln<-aggregate(list(df5a[Index]), by = list(df5a$ML,df5a$Species,df5a$Trt,df5a$Of_exp), mean) #Average everything by maternal line, species, treatment and cohort
+                                "MaxWidth","AreaConvexHull","StdAreaConvexHull","StdMaxWidth","StdAvAng"))
+
+Seln<-aggregate(list(df5a[Index]), by = list(df5a$ML,df5a$Species,df5a$Trt,df5a$Of_exp), mean) #Average relative fitness by maternal line, species, treatment and cohort. 
 colnames(Seln)[1:4]<-c("ML","Species","Trt","Of_exp")
 
 ## Average within blocks
-Seln2<-aggregate(list(df5a[Index]), by = list(df5a$Block,df5a$ML,df5a$Species,df5a$Trt,df5a$Of_exp), mean) #Average everything by block*, maternal line, species, treatment and cohort
+Seln2<-aggregate(list(df5a[Index]), by = list(df5a$Block,df5a$ML,df5a$Species,df5a$Trt,df5a$Of_exp), mean) #Average relative fitness by block*, maternal line, species, treatment and cohort
 colnames(Seln2)[1:5]<-c("Block","ML","Species","Trt","Of_exp")
 
 # Subset data by species
