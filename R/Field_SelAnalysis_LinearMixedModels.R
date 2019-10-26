@@ -2,8 +2,8 @@
 ### R Code for publication in prep 
 ### Title :  Belowground competition can influence the evolution of root traits 
 
-        
-          # Sara Colom and Regina Baucom #
+
+# Sara Colom and Regina Baucom #
 
 #     2017 Field experiment selection analysis &
 #   Linear mixed models for fixed and random effects
@@ -32,13 +32,13 @@ source("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2
 
 #Aesthetics
 Tx<-theme(axis.text.x = element_text(face="bold",  
-                                     size=15),#,color="black"),
+                                     size=25),#,color="black"),
           axis.text.y = element_text(face="bold", 
-                                     size=15),#,color="black"),
-          axis.title.x = element_text(size=20),
-          axis.title.y = element_text(size=20))+
-          theme(plot.title=element_text(face="italic",size=30,hjust=0.5),
-          legend.text=element_text(size=15))
+                                     size=25),#,color="black"),
+          axis.title.x = element_text(size=30),
+          axis.title.y = element_text(size=30))+
+  theme(plot.title=element_text(face="italic",size=30,hjust=0.5),
+        legend.text=element_text(size=25))
 
 # Key:
 # MaxWidh* = Root system width
@@ -54,20 +54,20 @@ Tx<-theme(axis.text.x = element_text(face="bold",
 
 ### Load Data and manage data
 
-      Fitness<-read.csv("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/CleanData/FitnessData.csv")
-      BRT<-read.csv("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/CleanData/BRTdata.csv")
-      
-      ###### Examine data structure and adjust
-      
-      str(Fitness)
-      str(BRT)
-      
-      #Adjust
-      Fitness[c("Block","Position")]<-lapply(Fitness[c("Block","Position")],as.factor)
-      BRT[c("Block","Position")]<-lapply(BRT[c("Block","Position")],as.factor)
-      
+Fitness<-read.csv("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/CleanData/FitnessData.csv")
+BRT<-read.csv("https://raw.githubusercontent.com/SaraMColom/Selection_RootTraits_2016_2017/master/CleanData/BRTdata.csv")
+
+###### Examine data structure and adjust
+
+str(Fitness)
+str(BRT)
+
+#Adjust
+Fitness[c("Block","Position")]<-lapply(Fitness[c("Block","Position")],as.factor)
+BRT[c("Block","Position")]<-lapply(BRT[c("Block","Position")],as.factor)
+
 # Count sample sizes
-      
+
 # Root phenotyping
 table(BRT$Species) 
 table(BRT$Species,BRT$Trt) 
@@ -82,26 +82,26 @@ table(Fitness$Species,Fitness$Of_exp,Fitness$Trt)
 #                                 &
 #                 Least square means of root traits
 ###################################################################
-      
+
 ## Both species and Block included
-      
+
 MW<-lmer(MaxWidth~Trt+Block+Species+(1|ML),BRT)
 anova(MW) # Fixed effects
 ranova(MW) # Random effects
 emmeans(MW,~Species|Trt)# Calculate LS mean of Species by treatment
-      
+
 ACH<-lmer(AreaConvexHull~Trt+Block+Species+(1|ML),BRT)
 anova(ACH) # Fixed effects
 ranova(ACH) # Random effects
 # Calculate LS mean of Species by treatment
 emmeans(ACH,~Species|Trt)
-      
+
 ARA<-lmer(AvAng~Trt+Block+Species+(1|ML),BRT)
 anova(ARA) # Fixed effects
 ranova(ARA) # Random effects
 # Calculate LS mean of Species by treatment
 emmeans(ARA,~Species|Trt) 
-      
+
 SN<-lmer(Seed_Number~Trt+Block+Species+(1|ML),Fitness)
 anova(SN) # Fixed effects
 ranova(SN) # Random effects
@@ -166,7 +166,7 @@ Fitmean<-merge(Fitness,SdMnSpeciesCohort,by=c("Of_exp","Species","Trt"))
 Fitmean$Rel_Fit<-Fitmean$Seed_Number/Fitmean$MeanSdNm
 
 ######################################################################################
-                    ### Calculate family means of root traits
+### Calculate family means of root traits
 #######################################################################################
 
 # The following for loop calculates the means of root traits by ML x Trt x Species 
@@ -193,13 +193,8 @@ df5a$StdAreaConvexHull<-(df5a$AreaConvexHull-mean(df5a$AreaConvexHull))/sd(df5a$
 df5a$StdMaxWidth<-(df5a$MaxWidth-mean(df5a$MaxWidth))/sd(df5a$MaxWidth)
 df5a$StdAvAng<-(df5a$AvAng-mean(df5a$AvAng))/sd(df5a$AvAng)
 
-# Square values
-df5a$StdAreaConvexHull2<-(df5a$StdAreaConvexHull*df5a$StdAreaConvexHull)
-df5a$StdMaxWidth2<-(df5a$StdMaxWidth*df5a$StdMaxWidth)
-df5a$StdAvAng2<-(df5a$StdAvAng*df5a$StdAvAng)
-
 ######################################################################################
-                                ### Selection analysis
+### Selection analysis
 #######################################################################################
 
 ### Instruction for selection analysis
@@ -213,13 +208,13 @@ df5a$StdAvAng2<-(df5a$StdAvAng*df5a$StdAvAng)
 
 ## Average across block
 Index<-which(names(df5a) %in% c("Seed_Number","AG_Biomass","MeanSdNm","Rel_Fit","AvAng",
-                                "MaxWidth","AreaConvexHull","StdAreaConvexHull","StdMaxWidth","StdAvAng",
-                                "StdAreaConvexHull2","StdMaxWidth2","StdAvAng2"))
-Seln<-aggregate(list(df5a[Index]), by = list(df5a$ML,df5a$Species,df5a$Trt,df5a$Of_exp), mean) #Average everything by maternal line, species, treatment and cohort
+                                "MaxWidth","AreaConvexHull","StdAreaConvexHull","StdMaxWidth","StdAvAng"))
+
+Seln<-aggregate(list(df5a[Index]), by = list(df5a$ML,df5a$Species,df5a$Trt,df5a$Of_exp), mean) #Average relative fitness by maternal line, species, treatment and cohort. 
 colnames(Seln)[1:4]<-c("ML","Species","Trt","Of_exp")
 
 ## Average within blocks
-Seln2<-aggregate(list(df5a[Index]), by = list(df5a$Block,df5a$ML,df5a$Species,df5a$Trt,df5a$Of_exp), mean) #Average everything by block*, maternal line, species, treatment and cohort
+Seln2<-aggregate(list(df5a[Index]), by = list(df5a$Block,df5a$ML,df5a$Species,df5a$Trt,df5a$Of_exp), mean) #Average relative fitness by block*, maternal line, species, treatment and cohort
 colnames(Seln2)[1:5]<-c("Block","ML","Species","Trt","Of_exp")
 
 # Subset data by species
@@ -265,7 +260,7 @@ anova(lm(Rel_Fit ~  StdMaxWidth + StdAvAng + StdAreaConvexHull + Trt + Block + B
 anova(lm(Rel_Fit ~  StdMaxWidth + StdAvAng + StdAreaConvexHull + Trt + Block + Block:Trt + Trt:StdMaxWidth +  Trt:StdAvAng + Trt:StdAreaConvexHull + Block:StdMaxWidth + Block:StdAvAng + Block:StdAreaConvexHull + Block:Trt:StdMaxWidth + Block:Trt:StdAvAng + Block:Trt:StdAreaConvexHull, data= hederacea2)) # All
 
 #######################################################
-              ### Correlation analysis 
+### Correlation analysis 
 #######################################################
 
 #Plotting Correlation Matrix
@@ -304,55 +299,41 @@ dev.off()
 
 # Regression selectin plots
 
-# (1) Assaign the beta values for ea regression slope according to selection gradient
-
-Beta1Alone=paste("beta[Alone] == ",0.56)
-Beta1Inter=paste("beta[Inter] == ",-0.15)
-
-Beta2Alone=paste("beta[Alone] == ",0.01)
-Beta2Inter=paste("beta[Inter] == ",0.23)
-
-
-# (2) Plot regression for standard root size on rel fit for I.purp
+# (1) Plot regression for standard root size on rel fit for I.purp
 
 plot1<-ggplot(data=Seln2%>%filter(Species=="P"),aes(x=StdAreaConvexHull,y=Rel_Fit))+  
   geom_point(aes(color=Trt))+
-  scale_color_manual(values=c('grey','black'))+
+  scale_color_manual(values=c('darkgrey','black'))+
   geom_abline(intercept = 1.07, slope = -0.15, color="black", 
               linetype="dashed", size=1.5)+
-  geom_abline(intercept = 1.17, slope = 0.63, color="grey", 
+  geom_abline(intercept = 1.17, slope = 0.63, color="darkgrey", 
               linetype="solid", size=1.5)+
   ylab("Relative fitness")+
   xlab("Standardized root size")+
   theme_classic()+
   Tx+
-  ggtitle("I. purpurea")+
-    ggplot2::annotate("text",label=as.character(Beta1Alone),parse=T,x=0.5,y=5,size=5)+
-    ggplot2::annotate("text",label=paste("± 0.29^"),x=1.1,y=5,size=5)+
-    ggplot2::annotate("text",label=as.character(Beta1Inter),parse=T,x=0.5,y=4.7,size=5)+
-    ggplot2::annotate("text",label=paste("± 0.22"),x=1.1,y=4.7,size=5)
+  theme(text=element_text(family="Times"))+
+  theme(legend.position = "none")
 
-# (3) Plot regression for standard root angle on rel fit for I.hed
+
+# (2) Plot regression for standard root angle on rel fit for I.hed
 
 plot2<-ggplot(data=Seln2%>%filter(Species=="H",Trt!="Intra"),aes(x=StdAvAng,y=Rel_Fit))+  
   geom_point(aes(color=Trt))+
-  scale_color_manual(values=c('grey','black'))+
+  scale_color_manual(values=c('darkgrey','black'))+
   geom_abline(intercept = 0.97, slope = 0.22, color="black", 
               linetype="dashed", size=1.5)+
-  geom_abline(intercept = 1.04, slope = 0.01, color="grey", 
+  geom_abline(intercept = 1.04, slope = 0.01, color="darkgrey", 
               linetype="solid", size=1.5)+
   ylab("")+
   xlab("Standardized root angle")+
   theme_classic()+
   Tx+
-  ggtitle("I. hederacea")+
-    ggplot2::annotate("text",label=as.character(Beta2Alone),parse=T,x=2.5,y=3,size=5)+
-    ggplot2::annotate("text",label=paste("± 0.08"),x=3.3,y=3,size=5)+
-    ggplot2::annotate("text",label=expression(bold(paste(beta[Inter], " = 0.23"))),parse=T,x=2.5,y=2.8,size=5)+
-    ggplot2::annotate("text",label=paste("± 0.09"),x=3.3,y=2.8,size=5,fontface =2)
+  theme(text=element_text(family="Times"))+
+  theme(legend.position = "none")
 
 # (3) Combine plots
-ggarrange(plot1,plot2,common.legend = T)
+ggarrange(plot1,plot2)
 
 # Supplimentary PCA figure 1
 PCA.df<-na.omit(BRT[c("Species","AreaConvexHull","MaxWidth","AvAng")])
@@ -387,4 +368,3 @@ r<-ggplot(data=ContribVar, aes(x=Trait, y=Dim.2),fill="black") +
   geom_bar(stat="identity", position=position_dodge())+
   theme_classic()
 r 
-
